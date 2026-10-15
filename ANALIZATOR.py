@@ -10,8 +10,9 @@ st.set_page_config(
 
 st.title("🧱 BrickLink do Allegro - Analizator Nowych Zestawów")
 st.markdown(
-    "Wklej tekst ze sklepu BrickLink. Program odfiltruje nowe zestawy i"
-    " automatycznie odrzuci figurki oraz kolekcje (Collectible/Collectibles)."
+    "Wklej tekst ze sklepu BrickLink. Program odfiltruje nowe zestawy,"
+    " akceptując wyłącznie wersje główne (z końcówką -1) i odrzucając"
+    " podzbiory/kalendarze cząstkowe."
 )
 
 # 1. Inicjalizacja stanów sesji
@@ -71,7 +72,7 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
     for block in blocks:
       # Interesują nas tylko oferty "New" (i bez słowa "Used")
       if "New" in block and "Used" not in block:
-        # ODRZUCANIE FIGUREK I KOLEKCJONERSKICH (CMF / Collectibles / F1 Race Cars itp.)
+        # Podstawowe odrzucanie ewidentnych figurek/kolekcji po nazwach ścieżek
         if (
             "Collectible" in block
             or "Collectibles" in block
@@ -80,22 +81,26 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
         ):
           continue  # Pomijamy tę ofertę
 
-        # 1. Szukamy ceny w PLN (obsługa przecinków w tysiącach np. 7,417.46)
+        # 1. Szukamy ceny w PLN
         pln_match = re.search(r"~PLN\s*([\d,\.]+)", block)
-        # 2. Szukamy numeru zestawu (np. 41368-1)
-        set_match = re.search(r"([A-Za-z0-9\-]+\d-\d)", block)
+        # 2. Szukamy pełnego numeru zestawu (np. 8421-1 lub 60475-22)
+        set_match = re.search(r"([A-Za-z0-9\-]+\d-\d+)", block)
 
         if pln_match and set_match:
+          raw_set_str = set_match.get(1) if hasattr(set_match, "get") else set_match.group(1)
+          
+          # KLUCZOWY FILTR: Akceptujemy tylko wersje z końcówką "-1" (główny zestaw)
+          if not raw_set_str.endswith("-1"):
+            continue
+
           raw_price_str = pln_match.group(1).replace(",", "")
           try:
             bl_pln_price = float(raw_price_str)
           except ValueError:
             continue
 
-          raw_set_str = set_match.group(1)
-
-          # Czyszczenie numeru zestawu
-          clean_set_match = re.search(r"(\d{3,5})-\d", raw_set_str)
+          # Czyszczenie numeru zestawu do samego ciągu cyfr przed "-1"
+          clean_set_match = re.search(r"(\d{3,5})-1", raw_set_str)
           if clean_set_match:
             set_num_only = clean_set_match.group(1)
           else:
@@ -164,8 +169,8 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
       # Zapisujemy wyniki w pamięci sesji
       st.session_state["results_df"] = pd.DataFrame(results)
       st.session_state["success_msg"] = (
-          f"Sukces! Przeanalizowano {len(results)} nowych zestawów (odrzucono"
-          " używane i kolekcjonerskie)."
+          f"Sukces! Przeanalizowano {len(results)} pełnych zestawów (z końcówką"
+          " -1)."
       )
 
       # Zlecamy czyszczenie pola i odświeżenie
@@ -173,8 +178,8 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
       st.rerun()
     else:
       st.error(
-          "Nie znaleziono pasujących zestawów (lub wszystkie były pozycjami"
-          " kolekcjonerskimi / używanymi)."
+          "Nie znaleziono pasujących pełnych zestawów (oferty miały inne"
+          " końcówki numerów lub były figurkami)."
       )
 
 # Wyświetlanie tabeli z pamięci sesji (jeśli istnieje)
