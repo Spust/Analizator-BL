@@ -15,7 +15,7 @@ st.markdown(
     " podzbiory/kalendarze cząstkowe."
 )
 
-# 1. Inicjalizacja stanów sesji
+# 1. Inicjalizacja stanów sesji (w tym suwaków, żeby pamiętały ustawienia)
 if "input_text" not in st.session_state:
   st.session_state["input_text"] = ""
 
@@ -27,6 +27,13 @@ if "results_df" not in st.session_state:
 
 if "success_msg" not in st.session_state:
   st.session_state["success_msg"] = ""
+
+# Stan początkowy dla suwaków filtrów
+if "min_profit_pln" not in st.session_state:
+  st.session_state["min_profit_pln"] = 0.0
+
+if "min_profit_roi" not in st.session_state:
+  st.session_state["min_profit_roi"] = 0.0
 
 # 2. Bezpieczne czyszczenie stanu PRZED utworzeniem widgetu tekstowego
 if st.session_state["clear_pending"]:
@@ -83,11 +90,11 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
 
         # 1. Szukamy ceny w PLN
         pln_match = re.search(r"~PLN\s*([\d,\.]+)", block)
-        # 2. Szukamy pełnego numeru zestawu (np. 8421-1 lub 60475-22)
+        # 2. Szukamy pełnego numeru zestawu (np. 8421-1)
         set_match = re.search(r"([A-Za-z0-9\-]+\d-\d+)", block)
 
         if pln_match and set_match:
-          raw_set_str = set_match.get(1) if hasattr(set_match, "get") else set_match.group(1)
+          raw_set_str = set_match.group(1)
           
           # KLUCZOWY FILTR: Akceptujemy tylko wersje z końcówką "-1" (główny zestaw)
           if not raw_set_str.endswith("-1"):
@@ -182,12 +189,42 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
           " końcówki numerów lub były figurkami)."
       )
 
-# Wyświetlanie tabeli z pamięci sesji (jeśli istnieje)
+# Wyświetlanie suwaków i tabeli z pamięci sesji (jeśli istnieje)
 if st.session_state["results_df"] is not None:
   st.success(st.session_state["success_msg"])
+  
+  st.markdown("### 🎛️ Filtrowanie wyników")
+  col1, col2 = st.columns(2)
+  
+  with col1:
+    min_pln_filter = st.slider(
+        "Minimalny zysk kwotowy (PLN):",
+        min_value=-50.0,
+        max_value=500.0,
+        value=st.session_state["min_profit_pln"],
+        step=5.0,
+        key="min_profit_pln",
+    )
+    
+  with col2:
+    min_roi_filter = st.slider(
+        "Minimalny zysk procentowy (% ROI):",
+        min_value=-50.0,
+        max_value=200.0,
+        value=st.session_state["min_profit_roi"],
+        step=1.0,
+        key="min_profit_roi",
+    )
+
+  # Filtrowanie dataframe na podstawie wartości z suwaków
+  df = st.session_state["results_df"]
+  filtered_df = df[
+      (df["Zysk (PLN)"] >= min_pln_filter) & (df["Zysk (%)"] >= min_roi_filter)
+  ]
+
+  st.markdown(f"**Wyświetlam {len(filtered_df)} z {len(df)} znalezionych zestawów spełniających kryteria:**")
+  
   st.dataframe(
-      st.session_state["results_df"].sort_values(
-          by="Zysk (PLN)", ascending=False
-      ),
+      filtered_df.sort_values(by="Zysk (PLN)", ascending=False),
       use_container_width=True,
   )
