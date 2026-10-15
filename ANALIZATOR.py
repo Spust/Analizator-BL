@@ -10,9 +10,8 @@ st.set_page_config(
 
 st.title("🧱 BrickLink do Allegro - Analizator Nowych Zestawów")
 st.markdown(
-    "Wklej tekst ze sklepu BrickLink. Program odfiltruje nowe zestawy,"
-    " poprawnie sczyta nazwy, ceny, porówna z Promoklockami, a tabela"
-    " pozostanie widoczna."
+    "Wklej tekst ze sklepu BrickLink. Program odfiltruje nowe zestawy i"
+    " automatycznie odrzuci figurki oraz kolekcje (Collectible/Collectibles)."
 )
 
 # 1. Inicjalizacja stanów sesji
@@ -72,9 +71,18 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
     for block in blocks:
       # Interesują nas tylko oferty "New" (i bez słowa "Used")
       if "New" in block and "Used" not in block:
+        # ODRZUCANIE FIGUREK I KOLEKCJONERSKICH (CMF / Collectibles / F1 Race Cars itp.)
+        if (
+            "Collectible" in block
+            or "Collectibles" in block
+            or "Series" in block
+            or "col" in block.lower()
+        ):
+          continue  # Pomijamy tę ofertę
+
         # 1. Szukamy ceny w PLN (obsługa przecinków w tysiącach np. 7,417.46)
         pln_match = re.search(r"~PLN\s*([\d,\.]+)", block)
-        # 2. Szukamy numeru zestawu (np. 21137-1 lub col20-8)
+        # 2. Szukamy numeru zestawu (np. 41368-1)
         set_match = re.search(r"([A-Za-z0-9\-]+\d-\d)", block)
 
         if pln_match and set_match:
@@ -153,11 +161,11 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
 
       progress_bar.empty()
 
-      # Zapisujemy wyniki w pamięci sesji, żeby nie znikały
+      # Zapisujemy wyniki w pamięci sesji
       st.session_state["results_df"] = pd.DataFrame(results)
       st.session_state["success_msg"] = (
           f"Sukces! Przeanalizowano {len(results)} nowych zestawów (odrzucono"
-          " używane)."
+          " używane i kolekcjonerskie)."
       )
 
       # Zlecamy czyszczenie pola i odświeżenie
@@ -165,8 +173,8 @@ if st.button("🚀 Analizuj oferty i zysk", type="primary"):
       st.rerun()
     else:
       st.error(
-          "Nie znaleziono nowych zestawów w wklejonym tekście. Upewnij się,"
-          " że tekst zawiera sekcje z cenami PLN (~PLN ...)."
+          "Nie znaleziono pasujących zestawów (lub wszystkie były pozycjami"
+          " kolekcjonerskimi / używanymi)."
       )
 
 # Wyświetlanie tabeli z pamięci sesji (jeśli istnieje)
